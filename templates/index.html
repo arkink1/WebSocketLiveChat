@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>Flack</title>
+
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous">
+    <style>
+      body {
+        padding:20px;text-align:center;overflow:hidden;
+      }
+      .scroll {
+        float:left;
+        margin-top: 20px;
+        width:210px;
+        height:650px;
+        overflow-x: hidden;
+        overflow-y:scroll;
+        border: 5px solid;
+        text-align:center;
+      }
+      .scroll2 {
+        float:right;
+        margin-top: 20px;
+        width:880px;
+        height:650px;
+        overflow-x:hidden;
+        overflow-y:scroll;
+        border: 5px solid;
+        text-align:center;
+      }
+      #channellist {
+        width:200px;height:650px;align:left;text-align:center;padding:inherit;
+      }
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 1;
+        padding-top: 100px;
+        left: 0;
+        top: 0;
+        width: 100%;
+        align-self: center;
+        height: 100%;
+        overflow: auto;
+        background-color: white;
+        background-color: rgba(0,0,0,0.4);
+      }
+      .modal-content {
+        background-color: white;
+        margin: auto;
+        padding: 20px;
+        border: 4px solid gray;
+        width: 30%;
+      }
+      .media {
+        width:800px;padding-top:20px;padding-left:10px;text-align:left;
+      }
+      .media2 {
+        width:800px;padding-top:20px;padding-right:25px;text-align:right;
+      }
+      .sendtime {
+        padding-left:15px;
+      }
+      .sendtime2 {
+        padding-right:15px;
+      }
+      .unamespanplussendtime {
+        text-align:left;
+      }
+      .unamespanplussendtime2 {
+        text-align:right;
+      }
+      .delete {
+        align-self: center;
+      }
+      .delete2 {
+        align-self: center;display:flex
+      }
+      .actualmessagespan {
+        align-self:left;align-content:left;padding-left:20px;
+      }
+      .actualmessagespan2 {
+        align-self:right;align-content:right;padding-right:20px;
+      }
+      p {
+        font-size:15px;
+      }
+
+    </style>
+
+  </head>
+
+  <body class="container">
+
+    <h1 id="title">Flack</h1>
+
+<!--Channel list-->
+    <div class="scroll" id="scroll">
+      <div id="channellist">
+        <h3></h3>
+        <h3>Create channel</h3>
+        <input type="text" id="makeChannel" class="form control text-center" placeholder="Enter name">
+        <button id="createChannel" type="button" class="btn btn-warning" style="padding: 1px 3px;">Create</button>
+        <h3></h3>
+        <h3>Channel List</h3>
+        {% for channel in channels %}
+        <h6>------------------</h6>
+        <button class="channelbuttonting btn btn-info btn-lg" data-cha="{{ channel }}">{{ channel }}</button>
+        {% endfor %}
+      </div>
+    </div>
+<!---->
+
+<!--Chatbox-->
+    <div class="scroll2">
+      <div id="messages" style="overflow:auto;text-align:right;padding-right:50px;padding-bottom:40px;">
+      </div>
+      <input id='messageInput' type='text' class="form-control text-left" placeholder="Message..." style="bottom:48px;width:870px;position:absolute;border-style:black;" maxlength="80">
+      <button id="messageSend" type="button" class="btn btn-warning" style="bottom:48px;right:170px;position:absolute">Send</button>
+    </div>
+<!---->
+
+<!--Display name form-->
+    <div id="myModal" class="modal">
+      <div class="modal-content">
+
+        <p style="font-size:30px;">Enter a display name</p>
+        <input type="text" id="displayName" placeholder="Name">
+        <button id="displayNameButton" class="btn btn-dark" style="width:20%;align-self:center;">Submit</button>
+
+      </div>
+    </div>
+<!---->
+
+    <script>
+
+      //Get socket
+      var socket = io.connect(location.protocol+'//'+document.domain+':'+location.port);
+      //Shorten modal
+      var modal = document.getElementById("myModal");
+      //Shorten storage
+      var storage = window.localStorage
+      //Shorten name form
+      var form = document.querySelector('#displayName')
+
+      //Get display name if not already in storage
+      if (!storage.getItem('username')) {
+        modal.style.display = "block";
+      }
+      else {
+        const username = storage.getItem('username')
+        document.querySelector('#title').innerHTML = `Hello, ${username}!`;
+        socket.emit('startWebsite');
+      }
+
+      //When the display name is submitted
+      document.querySelector('#displayNameButton').onclick = function() {
+        if (form.value.length > 0) {
+          modal.style.display = "none";
+          const username = form.value;
+          storage.setItem('username', username);
+          alert(`Hello, ${username}!`);
+          document.querySelector('#title').innerHTML = `Hello, ${username}!`;
+          socket.emit('madeUsername', {'username': username});
+          socket.emit('startWebsite');
+        }
+        else {
+          alert('Please enter a valid display name');
+        }
+      }
+
+      //Get last channel
+      socket.on('showWebsite', data => {
+        if (!storage.getItem('lastChannel')) {
+          var currentChannel = 'General';
+          document.getElementById('messageInput').placeholder = 'Message to General...';
+          storage.setItem('lastChannel', currentChannel);
+          socket.emit('getChannel', {'channel':'General'})
+        }
+        else {
+          socket.emit('getChannel', {'channel':storage.getItem('lastChannel')})
+        }
+      });
+
+      //Normal wesbite functionality
+      socket.on('formatChannel', data => {
+        if (data['singlemsg'] == 1){
+          if (data['channel'] == storage.getItem('lastChannel')) {
+            loadMessages(data);
+          }
+        }
+        else {
+          loadMessages(data)
+        }
+        //When a message is sent
+        document.querySelector('#messageSend').onclick = () => {
+          if (document.querySelector('#messageInput').value.length > 0) {
+            var msg = document.querySelector('#messageInput').value;
+            socket.emit('sendMessage', {'channel':data['channel'], 'message':msg, 'sender':storage.getItem('username')})
+            document.querySelector('#messageInput').value = '';
+          }
+          else {
+            alert('Enter a message to send');
+          }
+        }
+        //Creating channels
+        document.querySelector('#createChannel').onclick = () => {
+          var newChannelName = document.querySelector("#makeChannel").value;
+          if (newChannelName.length > 0) {
+            newChannelName = newChannelName.charAt(0).toUpperCase() + newChannelName.slice(1).toLowerCase();
+            var doesit = data['channels'].includes(newChannelName);
+            if (doesit == true) {
+              alert('This channel already exists');
+            }
+            else {
+              document.querySelector('#makeChannel').value = '';
+              socket.emit('newChannel', {'channel':newChannelName, 'username':storage.getItem('username')})
+            }
+          }
+          else {
+            alert('Enter a valid channel name');
+          }
+        }
+        //Joining a channel
+        document.querySelectorAll('.channelbuttonting').forEach(function(button) {
+          button.onclick = function() {
+            const ting = button.dataset.cha;
+            document.querySelector('#messageInput').placeholder = `Message to ${ting}...`;
+            storage.setItem('lastChannel', ting)
+            socket.emit('getChannel', {'channel':ting})
+          };
+        });
+        //Deleting a message
+        document.querySelectorAll('.delete').forEach(function(button) {
+          button.onclick = function() {
+            const unam = this.getAttribute('nom');
+            if (unam == storage.getItem('username')) {
+              this.parentElement.remove();
+              const time = this.getAttribute('id');
+              socket.emit('delChat', {'channel':storage.getItem('lastChannel'), 'msgtime':time})
+            }
+            else {
+              alert('Cannot delete others messages.')
+            }
+          };
+        });
+      });
+      //Making a new channel
+      socket.on('moreChannel', data => {
+        makeChannelButton(data['channel'])
+        if (data['username'] == storage.getItem('username')) {
+          document.querySelector('#messageInput').placeholder = `Message to ${data['channel']}...`;
+          storage.setItem('lastChannel', data['channel'])
+          socket.emit('getChannel', {'channel':data['channel']})
+        }
+        else {
+          socket.emit('getChannel', {'channel':storage.getItem('lastChannel')})
+        }
+      });
+      //When message is deleted
+      socket.on('didit', data => {
+        if (data['channel'] == storage.getItem('lastChannel'))
+          socket.emit('getChannel', {'channel':data['channel']})
+        else {
+          socket.emit('getChannel', {'channel':storage.getItem('lastChannel')})
+        }
+      });
+
+      //Function to load messages and show new messages
+      function loadMessages(data) {
+        if (data['singlemsg'] == 0) {
+          $('#messages').html("");
+        }
+        for (message in data['channelMsgs']) {
+          if (data['channelMsgs'][message][0] == storage.getItem('username')) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'media';
+            const unamespanplussendtime = document.createElement('span');
+            unamespanplussendtime.className = 'unamespanplussendtime';
+            const uNameSpan = document.createElement('span');
+            uNameSpan.innerHTML = data['channelMsgs'][message][0]
+            if (data['channelMsgs'][message][0] == storage.getItem('username')) {
+              uNameSpan.className = 'unamespan text-danger';
+            }
+            else {
+              uNameSpan.className = 'unamespan text-info';
+            }
+            const actualmessagespan = document.createElement('div');
+            actualmessagespan.className = 'actualmessagespan';
+            const actualMessage = document.createElement('h4');
+            actualMessage.innerHTML = data['channelMsgs'][message][1]
+            actualMessage.className = 'actualmessage';
+            const sendTime = document.createElement('small');
+            sendTime.innerHTML = data['channelMsgs'][message][2]
+            sendTime.className = 'sendtime text-muted';
+            const delButton = document.createElement('button');
+            delButton.className = 'delete close';
+            delButton.id = data['channelMsgs'][message][2];
+            delButton.setAttribute('aria-label', 'Close')
+            delButton.setAttribute('nom', data['channelMsgs'][message][0])
+            delButton.innerHTML = '<span aria-hidden="true">&times;</span>';
+
+            $('#messages').append(msgDiv);
+            msgDiv.append(delButton);
+            msgDiv.append(actualmessagespan);
+            unamespanplussendtime.append(uNameSpan);
+            unamespanplussendtime.append(sendTime);
+            actualmessagespan.append(actualMessage);
+            actualmessagespan.append(unamespanplussendtime)
+
+            document.querySelector('#messages').scrollTop
+          }
+          else {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'media2';
+            const unamespanplussendtime = document.createElement('span');
+            unamespanplussendtime.className = 'unamespanplussendtime2';
+            const uNameSpan = document.createElement('span');
+            uNameSpan.innerHTML = data['channelMsgs'][message][0]
+            if (data['channelMsgs'][message][0] == storage.getItem('username')) {
+              uNameSpan.className = 'unamespan2 text-danger';
+            }
+            else {
+              uNameSpan.className = 'unamespan2 text-info';
+            }
+            const actualmessagespan = document.createElement('div');
+            actualmessagespan.className = 'actualmessagespan2';
+            const actualMessage = document.createElement('h4');
+            actualMessage.innerHTML = data['channelMsgs'][message][1]
+            actualMessage.className = 'actualmessage2';
+            const sendTime = document.createElement('small');
+            sendTime.innerHTML = data['channelMsgs'][message][2]
+            sendTime.className = 'sendtime2 text-muted';
+
+            $('#messages').append(msgDiv);
+            msgDiv.append(actualmessagespan);
+            unamespanplussendtime.append(sendTime);
+            unamespanplussendtime.append(uNameSpan);
+            actualmessagespan.append(actualMessage);
+            actualmessagespan.append(unamespanplussendtime)
+
+            $('.scroll2').scrollTop
+          }
+        }
+      }
+
+      //Function to add the channel button
+      function makeChannelButton(data) {
+        const buton = document.createElement('button');
+        buton.className = 'channelbuttonting btn btn-info btn-lg';
+        buton.innerHTML = data;
+        buton.setAttribute('data-cha', data);
+        const line = document.createElement('h6');
+        line.innerHTML = '------------------'
+        $('#channellist').append(line);
+        $('#channellist').append(buton);
+      }
+
+    </script>
+
+  </body>
+
+</html>
